@@ -1,73 +1,80 @@
 import { useLocation } from "react-router-dom";
 import "./index.css";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { connectWS } from "./ws";
 
 export default function Chat() {
-  const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState([
-    { text: "Hello!", sender: "other", time: new Date() },
-    { text: "How are you?", sender: "other", time: new Date() },
-  ]); 
- const [totalmembers , setTotalmembers] = useState([])
+  const socket = useRef(null);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [totalUsers, setTotalUsers] = useState(0);
+
   const location = useLocation();
- const recivestate= location.state || {};
-const username  = recivestate.userName || 'guest'
+  const username = location.state?.userName || "guest";
 
   const handleSend = () => {
-    if (!message.trim()) return;
+    if (!input.trim()) return;
 
-    const now = new Date();
-    const newMessage = {
-      text: message,
-      sender: "you",
-      time: now,
+    socket.current.emit("sendMessage", {
+      text: input,
+      sender: username,
+    });
+
+    setInput("");
+  };
+
+  useEffect(() => {
+    socket.current = connectWS();
+
+    socket.current.on("user:joined", (data) => {
+      console.log("User connected:", data.username);
+    });
+
+    socket.current.on("totalperson", (count) => {
+      setTotalUsers(count);
+    });
+
+    socket.current.on("message", (msg) => {
+  // SAFETY CHECK
+  if (!msg || typeof msg !== "object") return;
+
+  setMessages(prev => Array.isArray(prev) ? [...prev, msg] : [msg]);
+});
+
+    socket.current.emit("user:join", username);
+
+    return () => {
+      socket.current.off("message");
+      socket.current.disconnect();
     };
-    setMessages([...messages, newMessage]);
-    setMessage("");
-  };
-
-  const formatTime = (date) => {
-    const hour = date.getHours().toString().padStart(2, "0");
-    const min = date.getMinutes().toString().padStart(2, "0");
-    return `${hour}:${min}`;
-  };
+  }, [username]);
 
   return (
-    <>
-      <div className="chat-app-container">
-        <div className="userinfo">
-          <div className="username">Joined As: {username}</div>
-          <div className="totaljoin">Total Members : {totalmembers.length}</div>
-        </div>
-        <div className="chatbox">
-          <div className="messageside">
-            {messages.map((msg, index) => (
-              <div
-                key={index}
-                className={`message ${msg.sender === "you" ? "you" : ""}`}
-              >
-                <p>
-                  {msg.text}  <br></br>
-                  <span className="time">{username}{" "}{formatTime(msg.time)}</span>
-                </p>
-              </div>
-            ))}
-          </div>
-          <div className="inputside">
-            <input
-              className="input2"
-              type="text"
-              placeholder="Type your message..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleSend()}
-            />
-            <button className="button2" type="button" onClick={handleSend}>
-              Send
-            </button>
-          </div>
-        </div>
+    <div className="chat-app-container">
+      <div className="userinfo">
+        <div>Joined As: {username}</div>
+        <div>Total Members: {totalUsers}</div>
       </div>
-    </>
+
+    <div className="messageside">
+  {Array.isArray(messages) &&
+    messages.map((msg, index) => (
+      <div key={index}>
+        <b>{msg.sender}:</b> {msg.text}
+      </div>
+    ))}
+</div>
+
+
+      <div className="inputside">
+        <input
+          className="input2"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+        />
+        <button onClick={handleSend}>Send</button>
+      </div>
+    </div>
   );
 }
