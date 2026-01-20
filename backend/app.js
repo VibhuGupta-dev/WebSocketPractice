@@ -3,9 +3,11 @@ import { Server } from "socket.io";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import cors from "cors";
+import { send } from "node:process";
 
 const app = express();
 const server = createServer(app);
+
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -25,21 +27,19 @@ server.listen(3000, () => {
   console.log("Socket.IO is now available");
 });
 
-const socketIds = []; // Array to track active IDs
+const socketIds = []; 
 
 io.on('connection', (socket) => {
   console.log("User connected →", socket.id);
   socketIds.push(socket.id);
   console.log("Active users:", socketIds);
 
-  // Emit updated total to EVERYONE (including new user)
   io.emit("totalperson", socketIds.length);
-  console.log("Total connected:", socketIds.length); // For server logging
+  console.log("Total connected:", socketIds.length); 
 
   socket.on("user:join", (username) => {
     console.log(`${username} joined`);
 
-    // Send to EVERYONE (including sender)
     io.emit("user:joined", {
       username,
       socketId: socket.id,
@@ -53,18 +53,25 @@ io.on('connection', (socket) => {
   });
 });
 
-  // Handle disconnection for THIS specific socket
+// Server-side (example)
+socket.on("sendPhoto", (data) => {
+  io.emit("photo", {
+    image: data.image,       
+    sender: data.sender,
+    timestamp: data.timestamp,
+  });
+});
   socket.on('disconnect', (reason) => {
     console.log(`User disconnected: ${socket.id}, reason: ${reason}`);
     
-    // Remove the ID from the array to prevent memory leaks
+    
     const index = socketIds.indexOf(socket.id);
     if (index > -1) {
       socketIds.splice(index, 1);
     }
     
-    // Emit updated total to remaining users
     io.emit("totalperson", socketIds.length);
     console.log("Remaining users:", socketIds);
   });
 });
+
