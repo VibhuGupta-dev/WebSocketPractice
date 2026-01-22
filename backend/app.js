@@ -15,6 +15,10 @@ const io = new Server(server, {
   }
 });
 
+
+const usernameToSocketMapping = new Map();
+const socketToUsernameMapping = new Map()
+
 app.use(express.json());
 app.use(cors({ origin: "*" }));
 
@@ -37,14 +41,45 @@ io.on('connection', (socket) => {
   io.emit("totalperson", socketIds.length);
   console.log("Total connected:", socketIds.length); 
 
-  socket.on("user:join", (username) => {
-    console.log(`${username} joined`);
+socket.on("user:join", (username) => {
+  console.log(`${username} joined`);
 
-    io.emit("user:joined", {
-      username,
-      socketId: socket.id,
-    });
+  // ✅ STORE MAPPINGS
+  usernameToSocketMapping.set(username, socket.id);
+  socketToUsernameMapping.set(socket.id, username);
+
+  io.emit("user:joined", {
+    username,
+    socketId: socket.id,
   });
+});
+
+socket.on('call-user', (data) => {
+  const { username, offer } = data;
+
+  const fromusername = socketToUsernameMapping.get(socket.id);
+  const socketId = usernameToSocketMapping.get(username);
+
+  if (!socketId) {
+    console.log("Target user not found:", username);
+    return;
+  }
+
+  socket.to(socketId).emit('incomming-call', {
+    from: fromusername,
+    offer
+  });
+
+  console.log("call-user data:", data);
+});
+
+socket.on("call-accepted", ({ to, ans }) => {
+  const socketId = usernameToSocketMapping.get(to);
+  if (!socketId) return;
+
+  socket.to(socketId).emit("call-accepted", { ans });
+});
+
 
   socket.on("sendMessage", (data) => {
   io.emit("message", {
