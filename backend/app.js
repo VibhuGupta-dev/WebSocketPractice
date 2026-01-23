@@ -32,7 +32,7 @@ server.listen(3000, () => {
 });
 
 const socketIds = []; 
-
+const usernames = []
 io.on('connection', (socket) => {
   console.log("User connected →", socket.id);
   socketIds.push(socket.id);
@@ -41,9 +41,11 @@ io.on('connection', (socket) => {
   io.emit("totalperson", socketIds.length);
   console.log("Total connected:", socketIds.length); 
 
+  io.emit('allpeople' , usernames)
+  console.log(usernames)
 socket.on("user:join", (username) => {
   console.log(`${username} joined`);
-
+  usernames.push(username)
   // ✅ STORE MAPPINGS
   usernameToSocketMapping.set(username, socket.id);
   socketToUsernameMapping.set(socket.id, username);
